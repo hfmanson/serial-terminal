@@ -21,6 +21,17 @@ import {
   serial as polyfill, SerialPort as SerialPortPolyfill,
 } from 'web-serial-polyfill';
 
+import { Buffer } from 'buffer';
+import { AesCmac } from 'aes-cmac';
+
+async function calcCmac(msg: Buffer) {
+  const key = Buffer.from('7b0e19c6d9b74acc996d3561a9745a7f', 'hex');
+
+  const aesCmac = new AesCmac(key);
+  const result = Buffer.from(await aesCmac.calculate(msg));
+  return result;
+}
+
 /**
  * Elements of the port selection dropdown extend HTMLOptionElement so that
  * they can reference the SerialPort they represent.
@@ -56,8 +67,13 @@ let portCounter = 1;
 let port: SerialPort | SerialPortPolyfill | undefined;
 let reader: ReadableStreamDefaultReader | undefined;
 
+let capture = true;
+let captureData = "";
+
 const urlParams = new URLSearchParams(window.location.search);
 const usePolyfill = urlParams.has('polyfill');
+const authStart = "AUTHSTART:";
+const authStartLen = authStart.length;
 
 const term = new Terminal({
   scrollback: 10_000,
@@ -66,7 +82,8 @@ const fitAddon = new FitAddon();
 term.loadAddon(fitAddon);
 const encoder = new TextEncoder();
 let toFlush = '';
-term.onData((data) => {
+
+function write(data: string) {
   if (echoCheckbox.checked) {
     term.write(data);
   }
@@ -90,7 +107,9 @@ term.onData((data) => {
   }
 
   writer.releaseLock();
-});
+}
+
+term.onData(write);
 
 /**
  * Returns the option corresponding to the given SerialPort if one is present
@@ -171,6 +190,41 @@ function downloadTerminalContents(): void {
 }
 
 /**
+ * testPlay.
+ */
+function testPlay(): void {
+  write("AT+AUDIOPLAYTESTTONE\r");
+}
+
+/**
+ * testMic1.
+ */
+function testMic1(): void {
+  write("AT+LOOPBACKSTART=2,48,48000\r");
+}
+
+/**
+ * testMic2.
+ */
+function testMic2(): void {
+  write("AT+LOOPBACKSTART=3,48,48000\r");
+}
+
+/**
+ * testMicStop.
+ */
+function testMicStop(): void {
+  write("AT+LOOPBACKSTOP\r");
+}
+
+/**
+ * testStop.
+ */
+function testStop(): void {
+  write("AT+DTSENDTESTING=0\r");
+}
+
+/**
  * Sets |port| to the currently selected port. If none is selected then the
  * user is prompted for one.
  */
@@ -215,6 +269,8 @@ function markDisconnected(): void {
   stopBitsSelector.disabled = false;
   flowControlCheckbox.disabled = false;
   port = undefined;
+  capture = true;
+  captureData = "";
 }
 
 /**
@@ -264,6 +320,7 @@ async function connectToPort(): Promise<void> {
     return;
   }
 
+  write("AT+AUTHSTART\r");
   while (port && port.readable) {
     try {
       reader = port.readable.getReader();
@@ -273,6 +330,26 @@ async function connectToPort(): Promise<void> {
           await new Promise<void>((resolve) => {
             term.write(value, resolve);
           });
+          if (capture) {
+            captureData += new TextDecoder().decode(value);;
+            const pos = captureData.indexOf("OK");
+            if (pos !== -1) {
+               console.log(captureData);
+               const pos2 = captureData.indexOf(authStart);
+               if (pos2 !== -1) {
+                 const pos3 = captureData.indexOf("\r\n", pos2);
+                 if (pos3 !== -1) {
+                   const challenge = captureData.slice(pos2 + authStartLen, pos3);
+                   console.log(challenge);
+                   const msg = Buffer.from(challenge, 'hex');
+                   const response = await calcCmac(msg);
+                   console.log(response.toString('hex'));
+                   write("AT+AUTHRESP=" + response.toString('hex') + "\r");
+                 }
+               }
+               capture = false;
+            }
+          }
         }
         if (done) {
           break;
@@ -330,8 +407,21 @@ document.addEventListener('DOMContentLoaded', async () => {
     fitAddon.fit();
   }
 
-  const download = document.getElementById('download') as HTMLSelectElement;
+  const download = document.getElementById('download') as HTMLButtonElement;
   download.addEventListener('click', downloadTerminalContents);
+  const play = document.getElementById('play') as HTMLButtonElement;
+  play.addEventListener('click', testPlay);
+  const mic1 = document.getElementById('mic1') as HTMLButtonElement;
+  mic1.addEventListener('click', testMic1);
+  const mic2 = document.getElementById('mic2') as HTMLButtonElement;
+  mic2.addEventListener('click', testMic2);
+  const micstop = document.getElementById('micstop') as HTMLButtonElement;
+  micstop.addEventListener('click', testMicStop);
+  const leavetesting = document.getElementById('leavetesting') as HTMLButtonElement;
+  leavetesting.addEventListener('click', testStop);
+
+
+
   portSelector = document.getElementById('ports') as HTMLSelectElement;
 
   connectButton = document.getElementById('connect') as HTMLButtonElement;

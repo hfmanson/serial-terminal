@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@types/w3c-web-serial": "^1.0.2",
+    "aes-cmac": "^2.0.0",
     "web-serial-polyfill": "^1.0.13",
     "xterm": "^4.17.0",
     "xterm-addon-fit": "^0.5.0"
