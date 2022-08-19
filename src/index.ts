@@ -56,6 +56,9 @@ let portCounter = 1;
 let port: SerialPort | SerialPortPolyfill | undefined;
 let reader: ReadableStreamDefaultReader | undefined;
 
+let capture: any;
+let captureData = "";
+
 const urlParams = new URLSearchParams(window.location.search);
 const usePolyfill = urlParams.has('polyfill');
 
@@ -66,7 +69,8 @@ const fitAddon = new FitAddon();
 term.loadAddon(fitAddon);
 const encoder = new TextEncoder();
 let toFlush = '';
-term.onData((data) => {
+
+function write(data: string) {
   if (echoCheckbox.checked) {
     term.write(data);
   }
@@ -90,7 +94,9 @@ term.onData((data) => {
   }
 
   writer.releaseLock();
-});
+}
+
+term.onData(write);
 
 /**
  * Returns the option corresponding to the given SerialPort if one is present
@@ -170,6 +176,35 @@ function downloadTerminalContents(): void {
   fauxLink.click();
 }
 
+async function doPython(pythoncode: string): Promise<void> {
+  const executor = (resolutionFunc: any, rejectionFunc: any) => {
+    // Typically, some asynchronous operation that accepts a callback,
+    // like the `readFile` function above
+    //(executor: (resolve: (value: unknown) => void, reject: (reason?: any) => void) => void): Promise<unknown>
+    capture = function (data: string) {
+      const parsed: any = JSON.parse(data);
+      console.log(parsed);
+      resolutionFunc(parsed);
+    };
+    captureData = "";
+    write("\x01" + pythoncode + "\x04");
+  };
+
+  return new Promise(executor);
+}
+
+declare global {
+  function doPython(pythoncode: string): Promise<void>
+}
+globalThis.doPython = doPython;
+
+async function testPython(): Promise<void> {
+  const pythoncode = document.getElementById("pythoncode") as HTMLTextAreaElement;
+  if (pythoncode) {
+    const result = await doPython(pythoncode.value);
+    console.log(result);
+  }
+}
 /**
  * Sets |port| to the currently selected port. If none is selected then the
  * user is prompted for one.
@@ -273,6 +308,15 @@ async function connectToPort(): Promise<void> {
           await new Promise<void>((resolve) => {
             term.write(value, resolve);
           });
+          if (capture) {
+            captureData += new TextDecoder().decode(value);
+            console.log(captureData);
+            const result = /OK(.*)\x04(\.*)\x04/s.exec(captureData);
+            if (result) {
+              capture(result[1]);
+              capture = undefined;
+            }
+          }
         }
         if (done) {
           break;
@@ -306,6 +350,7 @@ async function disconnectFromPort(): Promise<void> {
   // close it on exit.
   const localPort = port;
   port = undefined;
+  capture = undefined;
 
   if (reader) {
     await reader.cancel();
@@ -330,8 +375,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     fitAddon.fit();
   }
 
-  const download = document.getElementById('download') as HTMLSelectElement;
+  const download = document.getElementById('download') as HTMLButtonElement;
   download.addEventListener('click', downloadTerminalContents);
+  const testpython = document.getElementById('testpython') as HTMLButtonElement;
+  testpython.addEventListener('click', testPython);
+
   portSelector = document.getElementById('ports') as HTMLSelectElement;
 
   connectButton = document.getElementById('connect') as HTMLButtonElement;
