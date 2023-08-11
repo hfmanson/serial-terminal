@@ -200,16 +200,30 @@ function testPlay(): void {
  * testMic1.
  */
 function testMic1(): void {
-  write("AT+LOOPBACKSTART=2,48,48000\r");
+  write("AT+LOOPBACKSTART=0,48,48000\r");
 }
 
 /**
  * testMic2.
  */
 function testMic2(): void {
-  write("AT+LOOPBACKSTART=3,48,48000\r");
+  write("AT+LOOPBACKSTART=1,48,48000\r");
 }
 
+/**
+ * testMic3.
+ */
+function testMic3(): void {
+  write("AT+LOOPBACKSTART=2,48,48000\r");
+}
+
+
+/**
+ * testMic4.
+ */
+ function testMic4(): void {
+  write("AT+LOOPBACKSTART=3,48,48000\r");
+}
 /**
  * testMicStop.
  */
@@ -415,6 +429,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   mic1.addEventListener('click', testMic1);
   const mic2 = document.getElementById('mic2') as HTMLButtonElement;
   mic2.addEventListener('click', testMic2);
+  const mic3 = document.getElementById('mic3') as HTMLButtonElement;
+  mic3.addEventListener('click', testMic3);
+  const mic4 = document.getElementById('mic4') as HTMLButtonElement;
+  mic4.addEventListener('click', testMic4);
   const micstop = document.getElementById('micstop') as HTMLButtonElement;
   micstop.addEventListener('click', testMicStop);
   const leavetesting = document.getElementById('leavetesting') as HTMLButtonElement;

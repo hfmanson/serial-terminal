@@ -35,6 +35,18 @@ module.exports = {
     new HtmlWebpackPlugin({
       template: 'src/index.html'
     }),
+    new HtmlWebpackPlugin({
+      template: 'src/AAL6.html',
+      filename: 'AAL6.html'
+    }),
+    new HtmlWebpackPlugin({
+      template: 'src/AAL2.1.html',
+      filename: 'AAL2.1.html'
+    }),
+    new HtmlWebpackPlugin({
+      template: 'src/AAL2.2.html',
+      filename: 'AAL2.2.html'
+    }),
     new WorkboxPlugin.GenerateSW({
       // these options encourage the ServiceWorkers to get in there fast
       // and not allow any straggling "old" SWs to hang around
